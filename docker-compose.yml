@@ -1,0 +1,83 @@
+version: '3.8'
+services:
+  # Zookeeper para coordinar Kafka
+  zookeeper:
+    image: 'confluentinc/cp-zookeeper:7.2.1'
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - '2181:2181'
+    networks:
+      - shared_network
+
+  # Kafka Broker
+  kafka:
+    image: 'confluentinc/cp-kafka:7.2.1'
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - '9092:9092'
+      - '29092:29092'
+    networks:
+      - shared_network
+
+  # Airflow para la orquestación de flujos de trabajo
+  airflow:
+    image: 'apache/airflow:2.5.0'
+    ports:
+      - '8085:8080'  # Cambiamos el puerto del servidor web
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: 50000
+    volumes:
+      - ./dags:/usr/local/airflow/dags  # Monta los DAGs en un volumen
+      - ./logs:/usr/local/airflow/logs  # Monta los logs en un volumen
+      - ./plugins:/usr/local/airflow/plugins  # Monta los plugins en un volumen
+    command: >
+      bash -c "airflow db init &&
+               airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin &&
+               airflow webserver"
+    depends_on:
+      - kafka
+    networks:
+      - shared_network
+
+  # Hadoop (Namenode y Datanode) para almacenamiento de datos
+  hadoop-namenode:
+    image: 'bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8'
+    environment:
+      CLUSTER_NAME: "hadoop-cluster"
+    ports:
+      - '50070:50070'
+      - '9000:9000'
+    volumes:
+      - ./hadoop_data:/hadoop/dfs/name
+    networks:
+      - shared_network
+
+  hadoop-datanode:
+    image: 'bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8'
+    environment:
+      CLUSTER_NAME: "hadoop-cluster"
+      HDFS_NAMENODE: "hadoop-namenode"
+    depends_on:
+      - hadoop-namenode
+    ports:
+      - '50075:50075'
+      - '50010:50010'
+    volumes:
+      - ./hadoop_data:/hadoop/dfs/data
+    networks:
+      - shared_network
+
+networks:
+  shared_network:
+    driver: bridge
