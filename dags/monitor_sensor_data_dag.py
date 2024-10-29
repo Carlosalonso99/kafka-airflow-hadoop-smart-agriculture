@@ -27,7 +27,7 @@ dag = DAG(
     schedule_interval=timedelta(minutes=2),
 )
 
-# Función para consumir datos de Kafka y verificar las condiciones de alerta
+# Función para verificar y consumir datos de Kafka
 def consume_and_check_alerts(**kwargs):
     consumer = KafkaConsumer(
         'sensor-data',

@@ -1,40 +1,98 @@
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from kafka import KafkaConsumer
 import json
-import time
-import random
-from kafka import KafkaProducer
+import logging
+from hdfs import InsecureClient
 
-# Configurar el productor de Kafka
-producer = KafkaProducer(
-    bootstrap_servers='localhost:29092',
-    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+# Configurar el logger para que las alertas se muestren en la UI de Airflow
+log = logging.getLogger(__name__)
+
+# Definir el DAG y sus parámetros
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 10, 28),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(seconds=2),
+}
+
+dag = DAG(
+    'monitor_sensor_data',
+    default_args=default_args,
+    description='Monitorea datos de sensores IoT y genera alertas si es necesario',
+    schedule_interval=timedelta(minutes=2),
 )
 
-# Definir las características de los sensores
-sensor_types = ['temperature', 'humidity', 'light']
-device_ids = ['sensor_1', 'sensor_2', 'sensor_3']
+# Función para consumir datos de Kafka y verificar las condiciones de alerta
+def consume_and_check_alerts(**kwargs):
+    consumer = KafkaConsumer(
+        'sensor-data',
+        bootstrap_servers='kafka:9092',
+        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+    )
+    
+    # Cliente HDFS
+    hdfs_client = InsecureClient('http://namenode:9870', user='hadoop')
+    
+    alert_generated = False
+    start_time = datetime.now()
 
-def generate_sensor_data():
-    """
-    Genera datos simulados para diferentes tipos de sensores.
-    """
-    sensor_data = {
-        'device_id': random.choice(device_ids),
-        'timestamp': int(time.time()),
-        'temperature': round(random.uniform(10.0, 35.0), 2),
-        'humidity': round(random.uniform(30.0, 90.0), 2),
-        'light': round(random.uniform(300, 800), 2)
-    }
-    return sensor_data
+    # Definir un tiempo máximo para el consumo (por ejemplo, 1 minuto)
+    max_duration = timedelta(minutes=1)
 
-def send_data():
-    """
-    Enviar datos simulados a Kafka en intervalos regulares.
-    """
-    while True:
-        data = generate_sensor_data()
-        print(f'Enviando datos: {data}')
-        producer.send('sensor-data', value=data)
-        time.sleep(2)  # Enviar cada 2 segundos
+    for message in consumer:
+        sensor_data = message.value
+        print(f'Recibido: {sensor_data}')
+        
+        # Verificar las condiciones
+        temperature = sensor_data.get('temperature')
+        humidity = sensor_data.get('humidity')
 
-if __name__ == '__main__':
-    send_data()
+        # Listado de alertas
+        alerts = []
+
+        if temperature > 30:
+            alert_message = f'Alerta: Temperatura alta detectada ({temperature}°C)'
+            print(alert_message)
+            alerts.append(alert_message)
+            alert_generated = True
+        
+        if humidity < 40:
+            alert_message = f'Alerta: Humedad baja detectada ({humidity}%)'
+            print(alert_message)
+            alerts.append(alert_message)
+            alert_generated = True
+
+        # Guardar alertas en HDFS
+        if alerts:
+            try:
+                with hdfs_client.write('/alerts/alerts.log', append=True, encoding='utf-8') as f:
+                    for alert in alerts:
+                        f.write(f"{datetime.now()}: {alert}\n")
+            except Exception as e:
+                log.error(f"Error al escribir en HDFS: {e}")
+
+        # Terminar si se ha alcanzado el tiempo máximo de ejecución
+        if datetime.now() - start_time > max_duration:
+            break
+
+    # Marcar la tarea como success solo si se generó al menos una alerta
+    if alert_generated:
+        log.info("Se generaron alertas, tarea completada exitosamente.")
+    else:
+        raise ValueError("No se generaron alertas durante la ejecución.")
+
+# Tarea para consumir datos y verificar alertas
+check_alerts_task = PythonOperator(
+    task_id='check_alerts',
+    python_callable=consume_and_check_alerts,
+    provide_context=True,
+    dag=dag,
+)
+
+# Definir la secuencia de tareas
+check_alerts_task
