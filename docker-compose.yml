@@ -148,6 +148,38 @@ services:
     networks:
       - shared_network
 
+    # Loki para la recolección de logs
+  loki:
+    image: grafana/loki:2.5.0
+    ports:
+      - "3100:3100"
+    networks:
+      - shared_network
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
+      - ./loki/wal:/wal
+    command: -config.file=/etc/loki/local-config.yaml
+
+  # Promtail para enviar logs a Loki
+  promtail:
+    image: grafana/promtail:2.5.0
+    networks:
+      - shared_network
+    volumes:
+      - ./promtail:/etc/promtail
+      - /var/log:/var/log  # Cambia esta ruta si necesitas apuntar a los logs específicos que deseas recolectar
+    command: -config.file=/etc/promtail/promtail-config.yaml
+
+  # Grafana para la visualización de datos
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - shared_network
+      
 networks:
   shared_network:
     driver: bridge
