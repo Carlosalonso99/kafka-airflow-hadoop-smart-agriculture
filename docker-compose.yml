@@ -1,4 +1,5 @@
-version: '3.8'
+version: "3.8"
+
 services:
   # Zookeeper para coordinar Kafka
   zookeeper:
@@ -33,14 +34,14 @@ services:
   airflow:
     image: 'apache/airflow:2.5.0'
     ports:
-      - '8085:8080'  # Cambiamos el puerto del servidor web
+      - '8085:8080'
     environment:
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW_UID: 50000
     volumes:
-      - ./dags:/usr/local/airflow/dags  # Monta los DAGs en un volumen
-      - ./logs:/usr/local/airflow/logs  # Monta los logs en un volumen
-      - ./plugins:/usr/local/airflow/plugins  # Monta los plugins en un volumen
+      - ./dags:/usr/local/airflow/dags
+      - ./logs:/usr/local/airflow/logs
+      - ./plugins:/usr/local/airflow/plugins
     command: >
       bash -c "airflow db init &&
                airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin &&
@@ -50,34 +51,110 @@ services:
     networks:
       - shared_network
 
-  # Hadoop (Namenode y Datanode) para almacenamiento de datos
-  hadoop-namenode:
-    image: 'bde2020/hadoop-namenode:2.0.0-hadoop2.7.4-java8'
-    environment:
-      CLUSTER_NAME: "hadoop-cluster"
+  # Hadoop Namenode
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    restart: always
     ports:
-      - '50070:50070'
-      - '9000:9000'
+      - '9870:9870'  # Interfaz web del NameNode
+      - '9000:9000'  # Conexiones HDFS
     volumes:
-      - ./hadoop_data:/hadoop/dfs/name
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./hadoop.env
     networks:
       - shared_network
 
-  hadoop-datanode:
-    image: 'bde2020/hadoop-datanode:2.0.0-hadoop2.7.4-java8'
-    environment:
-      CLUSTER_NAME: "hadoop-cluster"
-      HDFS_NAMENODE: "hadoop-namenode"
-    depends_on:
-      - hadoop-namenode
-    ports:
-      - '50075:50075'
-      - '50010:50010'
+  # Hadoop DataNode 1
+  datanode1:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode1
+    restart: always
     volumes:
-      - ./hadoop_data:/hadoop/dfs/data
+      - hadoop_datanode1:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - shared_network
+
+  # Hadoop DataNode 2
+  datanode2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode2
+    restart: always
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - shared_network
+
+  # Hadoop DataNode 3
+  datanode3:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode3
+    restart: always
+    volumes:
+      - hadoop_datanode3:/hadoop/dfs/data
+    environment:
+      SERVICE_PRECONDITION: "namenode:9870"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - shared_network
+
+  # ResourceManager
+  resourcemanager:
+    image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
+    container_name: resourcemanager
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode1:9864 datanode2:9864 datanode3:9864"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - shared_network
+
+  # NodeManager
+  nodemanager1:
+    image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
+    container_name: nodemanager
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode1:9864 datanode2:9864 datanode3:9864 resourcemanager:8088"
+    env_file:
+      - ./hadoop.env
+    networks:
+      - shared_network
+
+  # HistoryServer
+  historyserver:
+    image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
+    container_name: historyserver
+    restart: always
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode1:9864 datanode2:9864 datanode3:9864 resourcemanager:8088"
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./hadoop.env
     networks:
       - shared_network
 
 networks:
   shared_network:
     driver: bridge
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode1:
+  hadoop_datanode2:
+  hadoop_datanode3:
+  hadoop_historyserver:

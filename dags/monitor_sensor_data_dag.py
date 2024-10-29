@@ -1,12 +1,10 @@
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.email_operator import EmailOperator
 from kafka import KafkaConsumer
 import json
 import logging
 from hdfs import InsecureClient
-
 
 # Configurar el logger para que las alertas se muestren en la UI de Airflow
 log = logging.getLogger(__name__)
@@ -20,7 +18,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(seconds=2),
-    # 'email': ['examlple@example.com']  # Añade tu correo para recibir alertas
 }
 
 dag = DAG(
@@ -39,7 +36,7 @@ def consume_and_check_alerts(**kwargs):
     )
     
     # Cliente HDFS
-    hdfs_client = InsecureClient('http://hadoop-namenode:50070', user='root')
+    hdfs_client = InsecureClient('http://namenode:9870', user='hadoop')
     
     for message in consumer:
         sensor_data = message.value
@@ -69,7 +66,7 @@ def consume_and_check_alerts(**kwargs):
                     for alert in alerts:
                         f.write(f"{datetime.now()}: {alert}\n")
             except Exception as e:
-                print(f"Error al escribir en HDFS: {e}")
+                log.error(f"Error al escribir en HDFS: {e}")
 
 # Tarea para consumir datos y verificar alertas
 check_alerts_task = PythonOperator(
@@ -79,15 +76,5 @@ check_alerts_task = PythonOperator(
     dag=dag,
 )
 
-# Tarea para enviar correo electrónico con las alertas
-# send_email_task = EmailOperator(
-#     task_id='send_alert_email',
-#     to='tu_correo@example.com',
-#     subject='Alerta de Sensor IoT',
-#     html_content="{{ ti.xcom_pull(task_ids='check_alerts', key='alerts') }}",
-#     dag=dag,
-# )
-
 # Definir la secuencia de tareas
-check_alerts_task 
-# >> send_email_task
+check_alerts_task
