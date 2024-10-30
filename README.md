@@ -83,7 +83,7 @@ Para crear la carpeta `alerts` y el archivo `alerts.log` dentro del sistema HDFS
 1. Accede al contenedor del Namenode de Hadoop:
 
    ```bash
-   docker exec -it kafka-airflow-hadoop-smart-agriculture-hadoop-namenode-1 /bin/bash
+   docker exec -it namenode /bin/bash
    ```
 
 2. Crea la carpeta `alerts` en HDFS:
