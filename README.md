@@ -1,8 +1,36 @@
-# README: Guía de Inicio Rápido para Kafka, Airflow y Hadoop
+Proyecto de Monitoreo de Datos de IoT con Kafka, Airflow y Hadoop
 
-## Introducción
+Introducción
 
-Este proyecto incluye un entorno de orquestación de datos utilizando Kafka, Airflow, y Hadoop. El archivo `docker-compose.yml` configura todos los servicios necesarios. Esta guía proporciona los pasos necesarios para poner en marcha los contenedores, crear un topic en Kafka, y ejecutar el scheduler de Airflow.
+Este proyecto se centra en la construcción de una arquitectura para el monitoreo de datos de sensores IoT utilizando tecnologías de Big Data. La solución integra Kafka, Airflow y Hadoop para procesar, analizar y almacenar datos de sensores que recopilan información de temperatura, humedad y luz. El objetivo es proporcionar una forma eficiente y escalable de gestionar estos datos, generar alertas cuando los valores superen ciertos umbrales y almacenar esta información para un análisis posterior.
+
+Tecnologías Utilizadas
+
+Apache Kafka: Actúa como el sistema de mensajería distribuido para recibir y transmitir los datos generados por los sensores. Kafka garantiza una transmisión eficiente y en tiempo real de los datos hacia los sistemas de procesamiento.
+
+Apache Airflow: Se utiliza para la orquestación de flujos de trabajo (workflows). En este proyecto, Airflow gestiona el consumo de los datos de Kafka, analiza los datos para detectar situaciones de alerta y almacena la información crítica en Hadoop.
+
+Hadoop (HDFS): Hadoop Distributed File System (HDFS) es utilizado para almacenar los datos de alertas generadas, proporcionando almacenamiento distribuido y confiable para gestionar grandes volúmenes de datos.
+
+Flujo General del Proyecto
+
+Generación de Datos de Sensores: Un script de simulación en Python genera datos de sensores relacionados con la temperatura, la humedad y la luz. Los sensores simulan dispositivos IoT y envían sus lecturas a un tópico de Kafka llamado sensor-data.
+
+Kafka Broker: Los datos generados por los sensores se envían al tópico sensor-data en Kafka. Kafka actúa como un "buffer" distribuido, haciendo que los datos estén disponibles para su consumo inmediato o en un momento posterior.
+
+Airflow DAGs: Apache Airflow tiene configurados DAGs (Directed Acyclic Graphs) para orquestar tareas automáticas. Los DAGs consumen los datos almacenados en Kafka y procesan cada mensaje para verificar si los valores exceden ciertos umbrales definidos. Si se detectan valores peligrosos (por ejemplo, una temperatura superior a 30°C o una humedad inferior al 40%), Airflow genera una alerta y la almacena en HDFS.
+
+Almacenamiento en HDFS: HDFS actúa como el sistema de almacenamiento distribuido. Las alertas generadas se guardan en un archivo dentro de HDFS, proporcionando una ubicación centralizada y distribuida donde se almacenan los datos de alerta para su posterior análisis o integración con otras herramientas.
+
+Componentes del Proyecto
+
+Simulador de Sensores IoT: Un script en Python que genera datos de temperatura, humedad y luz a intervalos regulares. Estos datos se envían a Kafka, actuando como un sistema de datos en tiempo real.
+
+Apache Kafka: Un broker que recibe los datos generados por los sensores y los almacena en un tópico. Kafka permite la distribución eficiente y confiable de los datos a otros servicios o sistemas.
+
+Apache Airflow: Se utiliza para definir y ejecutar flujos de trabajo que gestionan el consumo de datos de Kafka. Airflow ejecuta tareas periódicas para consumir los mensajes de Kafka, procesarlos y generar alertas en caso de que los valores de los sensores superen ciertos límites.
+
+Hadoop (HDFS): Almacena de forma segura los datos generados por las alertas, permitiendo mantener un historial distribuido y escalable de las situaciones críticas detectadas por el sistema.
 
 ## Requisitos Previos
 
