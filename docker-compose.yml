@@ -148,6 +148,14 @@ services:
     networks:
       - shared_network
 
+  sender-server-powerbi:
+    build:
+      context: ./sender-server-powerbi  # Ruta donde se encuentra el Dockerfile y el script sender.py
+    depends_on:
+      - kafka
+    networks:
+      - shared_network
+
 networks:
   shared_network:
     driver: bridge
